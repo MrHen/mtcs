@@ -379,11 +379,22 @@ def UCTPlayGame():
         state.DoMove(m)
     if state.GetResult(state.playerJustMoved) == 1.0:
         print "Player " + str(state.playerJustMoved) + " wins!"
+        return state.playerJustMoved
     elif state.GetResult(state.playerJustMoved) == 0.0:
         print "Player " + str(3 - state.playerJustMoved) + " wins!"
-    else: print "Nobody wins!"
+        return 3 - state.playerJustMoved
+    else:
+        print "Nobody wins!"
+        return 0
 
 if __name__ == "__main__":
     """ Play a single game to the end using UCT for both players.
     """
-    UCTPlayGame()
+
+    results = [0,0,0]
+
+    for i in range(10):
+        winner = UCTPlayGame()
+        results[winner] += 1
+
+    print "results " + str(results)
