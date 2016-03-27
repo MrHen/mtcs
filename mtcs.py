@@ -28,7 +28,7 @@ class GameState:
         By convention the players are numbered 1 and 2.
     """
     def __init__(self):
-            self.playerJustMoved = 2 # At the root pretend the player just moved is player 2 - player 1 has the first move
+        self.playerJustMoved = 2 # At the root pretend the player just moved is player 2 - player 1 has the first move
 
     def Clone(self):
         """ Create a deep clone of this game state.
@@ -267,6 +267,191 @@ class OthelloState:
             s += "\n"
         return s
 
+class ZombieDiceState:
+    def __init__(self):
+        self.playerScores = [0,0,0]
+        self.round = 0
+        self.lastRound = False
+        self.tiebreaker = False
+        self.ended = False
+
+        self.StartRound()
+
+        self.playerJustMoved = 2
+
+    def Clone(self):
+        """ Create a deep clone of this game state.
+        """
+        st = ZombieDiceState()
+
+        st.playerScores = self.playerScores[:]
+        st.round = self.round
+        st.lastRound = self.lastRound
+        st.tiebreaker = self.tiebreaker
+        st.ended = self.ended
+
+        st.playerJustMoved = self.playerJustMoved
+
+        st.score = self.score
+        st.brains = self.brains[:]
+        st.shotguns = self.shotguns[:]
+        st.hand = self.hand[:]
+        st.cup = self.cup[:]
+
+        return st
+
+    def DoMove(self, move):
+        """ Update a state by carrying out the given move.
+            Must update playerJustMoved.
+        """
+        # print "DoMove started (" + move + ")"
+        # assert not self.ended
+
+        if (self.ended):
+            return
+
+        assert len(self.shotguns) < 3
+
+        if (move == "ROLL"):
+            self.DoRollHand()
+
+            if (len(self.shotguns) >= 3):
+                # print "Shotgun limit reached"
+                self.EndRound()
+
+        elif (move == "KEEP"):
+            self.EndRound()
+
+        else:
+            assert False
+
+    def GetMoves(self):
+        """ Get all possible moves from this state.
+        """
+        # print "GetMoves started (ended:" + str(self.ended) + ")"
+        if self.ended:
+            # print "GetMoves finished []"
+            return []
+
+        if self.rollCount == 0:
+            # print "GetMoves finished [ROLL]"
+            return ["ROLL"]
+
+        # print "GetMoves finished [ROLL, KEEP]"
+        return ["ROLL", "KEEP"]
+
+    def GetResult(self, playerjm):
+        """ Get the game result from the viewpoint of playerjm.
+        """
+        assert self.ended
+        if self.playerScores[playerjm] > self.playerScores[3 - playerjm]:
+            return 1.0
+        elif self.playerScores[playerjm] < self.playerScores[3 - playerjm]:
+            return 0.0
+        else:
+            return 0.5
+
+    def StartRound(self):
+        self.round += 1
+        self.rollCount = 0
+        self.score = 0
+        self.brains = []
+        self.shotguns = []
+        self.hand = []
+        self.cup = ["red"] * 3 + ["yellow"] * 4 + ["green"] * 6
+
+    def EndRound(self):
+        # print "EndRound started"
+        self.playerJustMoved = 3 - self.playerJustMoved
+
+        if (len(self.shotguns) < 3):
+            self.playerScores[self.playerJustMoved] += self.score
+
+        # if self.tiebreaker:
+        #     self.ended = True
+
+        if self.lastRound and self.playerJustMoved == 2:
+        #     self.tiebreaker = self.playerScores[0] == self.playerScores[1] # TODO won't work with more than two players
+        #     self.ended = not self.tiebreaker
+            self.ended = True
+            # print "lastRound -> ended"
+
+        if self.playerScores[self.playerJustMoved] >= 13:
+            # once a player reaches 13 brains, it becomes the last round
+            self.lastRound = True
+
+        self.StartRound()
+
+    def DoRollHand(self):
+        # "ran out of dice", so put the rolled brains back into the cup
+        if 3 - len(self.hand) > len(self.cup):
+            self.cup.extend(self.brains)
+            self.brains = []
+
+        # add new dice to hand from cup until there are 3 dice in the hand
+        while len(self.hand) < 3:
+            newDie = random.choice(self.cup)
+            self.cup.remove(newDie)
+            self.hand.append(newDie)
+
+        self.rollCount += 1
+
+        for die in self.hand[:]:
+            result = self.DoRollDie(die)
+
+            if result == "shotgun":
+                self.shotguns.append(die)
+                self.hand.remove(die)
+
+            if result == "brains":
+                self.score += 1
+                self.brains.append(die)
+                self.hand.remove(die)
+
+
+    def DoRollDie(self, die):
+        """Returns the result of a single die roll as a dictionary with keys 'color' and 'icon'.
+        The die parameter is a string of the color of the die (i.e. 'green', 'yellow', 'red').
+        The 'color' values in the return dict are one of 'green', 'yellow', 'red'.
+        The 'icon' values are one of 'shotgun', 'footsteps', 'brains'."""
+        roll = random.randint(1, 6)
+        if die == "red":
+            if roll in (1, 2, 3):
+                return "shotgun"
+            elif roll in (4, 5):
+                return "footsteps"
+            elif roll in (6,):
+                return "brains"
+        elif die == "yellow":
+            if roll in (1, 2):
+                return "shotgun"
+            elif roll in (3, 4):
+                return "footsteps"
+            elif roll in (5, 6):
+                return "brains"
+        elif die == "green":
+            if roll in (1,):
+                return "shotgun"
+            elif roll in (2, 3):
+                return "footsteps"
+            elif roll in (4, 5, 6):
+                return "brains"
+
+    def __repr__(self):
+        """ Don't need this - but good style.
+        """
+        s = "Player: " + str(3 - self.playerJustMoved) + "\n"
+        s += "My Score: " + str(self.playerScores[self.playerJustMoved]) + "\n"
+        s += "Their Score: " + str(self.playerScores[3 - self.playerJustMoved]) + "\n"
+        s += "Round: " + str(self.round) + "\n"
+        s += "Round Score: " + str(self.score) + "\n"
+        s += "Rolls: " + str(self.rollCount) + "\n"
+        s += "Brains: [" + ",".join(self.brains) + "]\n"
+        s += "Shotguns: [" + ",".join(self.shotguns) + "]\n"
+        s += "Hand: [" + ",".join(self.hand) + "]\n"
+        s += "Cup: [" + ",".join(self.cup) + "]\n"
+        return s
+
 class Node:
     """ A node in the game tree. Note wins is always from the viewpoint of playerJustMoved.
         Crashes if state not specified.
@@ -336,10 +521,16 @@ def UCT(rootstate, itermax, verbose = False):
         node = rootnode
         state = rootstate.Clone()
 
+        if (verbose):
+            print "\tSelect stage"
+
         # Select
         while node.untriedMoves == [] and node.childNodes != []: # node is fully expanded and non-terminal
             node = node.UCTSelectChild()
             state.DoMove(node.move)
+
+        if (verbose):
+            print "\tExpand stage"
 
         # Expand
         if node.untriedMoves != []: # if we can expand (i.e. state/node is non-terminal)
@@ -347,32 +538,44 @@ def UCT(rootstate, itermax, verbose = False):
             state.DoMove(m)
             node = node.AddChild(m,state) # add child and descend tree
 
+        if (verbose):
+            print "\tRollout stage"
+
         # Rollout - this can often be made orders of magnitude quicker using a state.GetRandomMove() function
         while state.GetMoves() != []: # while state is non-terminal
             state.DoMove(random.choice(state.GetMoves()))
+
+        if (verbose):
+            print "\tBackpropagate stage"
 
         # Backpropagate
         while node != None: # backpropagate from the expanded node and work back to the root node
             node.Update(state.GetResult(node.playerJustMoved)) # state is terminal. Update node with result from POV of node.playerJustMoved
             node = node.parentNode
 
-    # Output some information about the tree - can be omitted
-    if (verbose): print rootnode.TreeToString(0)
-    else: print rootnode.ChildrenToString()
+    sortedChildren = sorted(rootnode.childNodes, key = lambda c: c.visits)
 
-    return sorted(rootnode.childNodes, key = lambda c: c.visits)[-1].move # return the move that was most visited
+    # Output some information about the tree - can be omitted
+    if (verbose):
+        print rootnode.TreeToString(0)
+    else:
+        print rootnode.ChildrenToString()
+
+    return sortedChildren[-1].move # return the move that was most visited
 
 def UCTPlayGame():
     """ Play a sample game between two UCT players where each player gets a different number
         of UCT iterations (= simulations = tree nodes).
     """
-    state = OthelloState(6) # uncomment to play Othello on a square board of the given size
+    # state = OthelloState(6) # uncomment to play Othello on a square board of the given size
     # state = OXOState() # uncomment to play OXO
     # state = NimState(15) # uncomment to play Nim with the given number of starting chips
+    state = ZombieDiceState()
+
     while (state.GetMoves() != []):
         print str(state)
         if state.playerJustMoved == 1:
-            m = UCT(rootstate = state, itermax = 1000, verbose = False) # play with values for itermax and verbose = True
+            m = UCT(rootstate = state, itermax = 10, verbose = False) # play with values for itermax and verbose = True
         else:
             m = UCT(rootstate = state, itermax = 100, verbose = False)
         print "Best Move: " + str(m) + "\n"
