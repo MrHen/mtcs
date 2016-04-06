@@ -277,7 +277,7 @@ class ZombieDiceState:
 
         self.StartRound()
 
-        self.playerJustMoved = 2
+        self.playerJustMoved = 1
 
     def Clone(self):
         """ Create a deep clone of this game state.
@@ -304,9 +304,6 @@ class ZombieDiceState:
         """ Update a state by carrying out the given move.
             Must update playerJustMoved.
         """
-        # print "DoMove started (" + move + ")"
-        # assert not self.ended
-
         if (self.ended):
             return
 
@@ -316,7 +313,6 @@ class ZombieDiceState:
             self.DoRollHand()
 
             if (len(self.shotguns) >= 3):
-                # print "Shotgun limit reached"
                 self.EndRound()
 
         elif (move == "KEEP"):
@@ -328,16 +324,12 @@ class ZombieDiceState:
     def GetMoves(self):
         """ Get all possible moves from this state.
         """
-        # print "GetMoves started (ended:" + str(self.ended) + ")"
         if self.ended:
-            # print "GetMoves finished []"
             return []
 
         if self.rollCount == 0:
-            # print "GetMoves finished [ROLL]"
             return ["ROLL"]
 
-        # print "GetMoves finished [ROLL, KEEP]"
         return ["ROLL", "KEEP"]
 
     def GetResult(self, playerjm):
@@ -361,20 +353,17 @@ class ZombieDiceState:
         self.cup = ["red"] * 3 + ["yellow"] * 4 + ["green"] * 6
 
     def EndRound(self):
-        # print "EndRound started"
         self.playerJustMoved = 3 - self.playerJustMoved
 
         if (len(self.shotguns) < 3):
             self.playerScores[self.playerJustMoved] += self.score
 
-        # if self.tiebreaker:
-        #     self.ended = True
+        if self.tiebreaker:
+            self.ended = True
 
         if self.lastRound and self.playerJustMoved == 2:
-        #     self.tiebreaker = self.playerScores[0] == self.playerScores[1] # TODO won't work with more than two players
-        #     self.ended = not self.tiebreaker
-            self.ended = True
-            # print "lastRound -> ended"
+            self.tiebreaker = self.playerScores[1] == self.playerScores[2] # TODO won't work with more than two players
+            self.ended = not self.tiebreaker
 
         if self.playerScores[self.playerJustMoved] >= 13:
             # once a player reaches 13 brains, it becomes the last round
@@ -441,8 +430,8 @@ class ZombieDiceState:
         """ Don't need this - but good style.
         """
         s = "Player: " + str(3 - self.playerJustMoved) + "\n"
-        s += "My Score: " + str(self.playerScores[self.playerJustMoved]) + "\n"
-        s += "Their Score: " + str(self.playerScores[3 - self.playerJustMoved]) + "\n"
+        s += "My Score: " + str(self.playerScores[3 - self.playerJustMoved]) + "\n"
+        s += "Their Score: " + str(self.playerScores[self.playerJustMoved]) + "\n"
         s += "Round: " + str(self.round) + "\n"
         s += "Round Score: " + str(self.score) + "\n"
         s += "Rolls: " + str(self.rollCount) + "\n"
@@ -575,9 +564,9 @@ def UCTPlayGame():
     while (state.GetMoves() != []):
         print str(state)
         if state.playerJustMoved == 1:
-            m = UCT(rootstate = state, itermax = 10, verbose = False) # play with values for itermax and verbose = True
+            m = UCT(rootstate = state, itermax = 1, verbose = False) # play with values for itermax and verbose = True
         else:
-            m = UCT(rootstate = state, itermax = 100, verbose = False)
+            m = UCT(rootstate = state, itermax = 10, verbose = False)
         print "Best Move: " + str(m) + "\n"
         state.DoMove(m)
     if state.GetResult(state.playerJustMoved) == 1.0:
@@ -596,7 +585,7 @@ if __name__ == "__main__":
 
     results = [0,0,0]
 
-    for i in range(10):
+    for i in range(100):
         winner = UCTPlayGame()
         results[winner] += 1
 
